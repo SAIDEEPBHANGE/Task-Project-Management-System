@@ -1,0 +1,88 @@
+# =========================
+# General
+# =========================
+*.log
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# =========================
+# Build outputs
+# =========================
+**/bin/
+**/obj/
+
+# Rider / ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# =========================
+# NuGet
+# =========================
+**/packages/
+.nuget/
+.nuget/packages/
+
+# =========================
+# Blazor WebAssembly
+# =========================
+**/wwwroot/_framework/
+**/wwwroot/_content/
+**/wwwroot/service-worker-assets.js
+
+# =========================
+# ASP.NET Core
+# =========================
+appsettings.Development.json
+appsettings.Local.json
+
+# IIS / publish
+*.pubxml
+*.publishproj
+PublishProfiles/
+
+# =========================
+# User secrets
+# =========================
+secrets.json
+
+# =========================
+# EF Core
+# =========================
+**/Migrations/*.cs
+!**/Migrations/*ContextModelSnapshot.cs
+
+# =========================
+# Logs
+# =========================
+logs/
+**/logs/
+
+# =========================
+# Test results
+# =========================
+TestResults/
+*.trx
+
+# =========================
+# Node / Frontend (if used)
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Coverage
+# =========================
+coverage/
+*.coverage
+*.coveragexml
