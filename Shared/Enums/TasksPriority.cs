@@ -1,6 +1,6 @@
 namespace Shared.Enums;
 
-public enum TaskPriority
+public enum TasksPriority
 {
     Low,
     Medium,

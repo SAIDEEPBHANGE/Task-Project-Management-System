@@ -1,6 +1,6 @@
 ﻿namespace Shared.Enums;
 
-public enum TaskStatus
+public enum TasksStatus
 {
     Todo,
     InProgress,
