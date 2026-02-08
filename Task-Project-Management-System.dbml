@@ -1,10 +1,34 @@
 // --- Enums ---
-Enum OrganizationRole { Owner; Admin; Member }
-Enum ProjectRole { Owner; Admin; Member; Viewer }
-Enum TaskStatus { Todo; InProgress; Done; Archived }
-Enum TaskPriority { Low; Medium; High }
+Enum OrganizationRole { 
+  Owner 
+  Admin 
+  Member 
+}
+Enum ProjectRole { 
+  Owner 
+  Admin 
+  Member 
+  Viewer 
+}
+Enum TaskStatus { 
+  Todo 
+  InProgress 
+  Done 
+  Archived 
+}
+Enum TaskPriority { 
+  Low 
+  Medium 
+  High 
+}
+Enum ProjectStatus { 
+  Active 
+  Archived 
+  Completed 
+}
 
-// --- Core Identity ---
+// --- Tables ---
+
 Table Users {
   Id int [pk, increment]
   FullName varchar [not null]
@@ -12,18 +36,17 @@ Table Users {
   Email varchar [not null, unique]
   PasswordHash varchar [not null]
   AvatarUrl varchar
-  LastLoginAt timestamp // NEW: Useful for security/cleanup
+  LastLoginAt timestamp
   CreatedAt timestamp [default: `now()`]
   UpdatedAt timestamp
-  DeletedAt timestamp
+  DeletedAt timestamp [note: 'Null = Active']
 }
 
-// --- Multi-Tenant Layer ---
 Table Organizations {
   Id int [pk, increment]
   Name varchar [not null]
   Slug varchar [unique, not null]
-  OwnerId int [not null, ref: > Users.Id] // Consistent naming
+  OwnerId int [not null, ref: > Users.Id]
   CreatedAt timestamp [default: `now()`]
   UpdatedAt timestamp
   DeletedAt timestamp
@@ -35,25 +58,29 @@ Table OrganizationMembers {
   UserId int [not null, ref: > Users.Id]
   Role OrganizationRole [default: 'Member']
   JoinedAt timestamp [default: `now()`]
-  
+  LeftAt timestamp [null]
+
   Indexes {
-    (OrganizationId, UserId) [unique]
+    (OrganizationId, UserId) [unique] // Prevents duplicate membership
   }
 }
 
-// --- Project Layer ---
 Table Projects {
   Id int [pk, increment]
   OrganizationId int [not null, ref: > Organizations.Id]
   Title varchar [not null]
+  Slug varchar [not null]
   Description text
+  Status ProjectStatus [default: 'Active']
   CreatedBy int [not null, ref: > Users.Id]
+  StartDate date
+  EndDate date
   CreatedAt timestamp [default: `now()`]
   UpdatedAt timestamp
   DeletedAt timestamp
-  
+
   Indexes {
-    OrganizationId // NEW: Crucial for multi-tenant query performance
+    (OrganizationId, Slug) [unique] // Slugs unique within Organization
   }
 }
 
@@ -69,11 +96,10 @@ Table ProjectMembers {
   }
 }
 
-// --- Work Layer ---
 Table Tasks {
   Id int [pk, increment]
   ProjectId int [not null, ref: > Projects.Id]
-  OrganizationId int [not null, ref: > Organizations.Id] // NEW: Denormalized for security/speed
+  OrganizationId int [not null, ref: > Organizations.Id] // Denormalized for security
   Title varchar [not null]
   Description text
   Status TaskStatus [default: 'Todo']
@@ -87,9 +113,9 @@ Table Tasks {
 
   Indexes {
     ProjectId
-    OrganizationId // Filter by Org
+    OrganizationId 
     AssignedTo
-    (Status, Priority) // Complex filtering for dashboards
+    (OrganizationId, Status) // Performance for Global Dashboard
   }
 }
 
@@ -97,9 +123,21 @@ Table Comments {
   Id int [pk, increment]
   TaskId int [not null, ref: > Tasks.Id]
   UserId int [not null, ref: > Users.Id]
-  ParentCommentId int [ref: > Comments.Id] // NEW: Threading support
+  ParentCommentId int [ref: > Comments.Id, null]
   Content text [not null]
+  IsEdited boolean [default: false]
   CreatedAt timestamp [default: `now()`]
   UpdatedAt timestamp
   DeletedAt timestamp
+}
+
+Table ActivityLogs {
+  Id bigint [pk, increment]
+  OrganizationId int [not null, ref: > Organizations.Id]
+  UserId int [ref: > Users.Id]
+  Action varchar // e.g., 'Task.StatusChange'
+  EntityId int
+  OldValue text
+  NewValue text
+  Timestamp timestamp [default: `now()`]
 }
