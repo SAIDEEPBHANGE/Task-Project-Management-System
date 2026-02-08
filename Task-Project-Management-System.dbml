@@ -1,0 +1,112 @@
+// --- Enums ---
+Enum ProjectRole {
+  Owner
+  Admin
+  Member
+  Viewer
+}
+
+Enum TaskStatus {
+  Todo
+  InProgress
+  Done
+  Archived
+}
+
+Enum TaskPriority {
+  Low
+  Medium
+  High
+}
+
+// --- Tables ---
+
+Table Users {
+  Id int [pk, increment]
+  FullName varchar [not null]
+  Username varchar [not null, unique]
+  Email varchar [not null, unique]
+  PasswordHash varchar [not null]
+  AvatarUrl varchar
+  LastLoginAt timestamp
+  CreatedAt timestamp [default: `now()`]
+  UpdatedAt timestamp
+  DeletedAt timestamp [note: 'Soft delete: Non-null means deleted']
+}
+
+Table Projects {
+  Id int [pk, increment]
+  Title varchar [not null]
+  Description text
+  OwnerId int [not null, ref: > Users.Id]
+  Slug varchar [unique, note: 'For pretty URLs: /projects/my-cool-app']
+  CreatedAt timestamp [default: `now()`]
+  UpdatedAt timestamp
+  DeletedAt timestamp
+}
+
+Table ProjectMembers {
+  Id int [pk, increment]
+  ProjectId int [not null, ref: > Projects.Id]
+  UserId int [not null, ref: > Users.Id]
+  Role ProjectRole [default: 'Member']
+  JoinedAt timestamp [default: `now()`]
+  LeftAt timestamp
+
+  Indexes {
+    (ProjectId, UserId) [unique]
+  }
+}
+
+Table Tasks {
+  Id int [pk, increment]
+  ProjectId int [not null, ref: > Projects.Id]
+  CreatedBy int [not null, ref: > Users.Id]
+  AssignedTo int [ref: > Users.Id]
+  Title varchar [not null]
+  Description text
+  Status TaskStatus [default: 'Todo']
+  Priority TaskPriority [default: 'Medium']
+  DueDate datetime
+  EstimatedHours decimal(5,2) [note: 'For analytics/burn-down charts']
+  CreatedAt timestamp [default: `now()`]
+  UpdatedAt timestamp
+  DeletedAt timestamp
+
+  Indexes {
+    ProjectId
+    AssignedTo
+    Status
+    (ProjectId, Status) // Composite index for dashboard performance
+  }
+}
+
+Table Comments {
+  Id int [pk, increment]
+  TaskId int [not null, ref: > Tasks.Id]
+  UserId int [not null, ref: > Users.Id]
+  ParentCommentId int [ref: > Comments.Id, note: 'Enables threaded replies']
+  Content text [not null]
+  CreatedAt timestamp [default: `now()`]
+  UpdatedAt timestamp
+  DeletedAt timestamp
+
+  Indexes {
+    TaskId
+    ParentCommentId
+  }
+}
+
+Table ActivityLogs {
+  Id bigint [pk, increment]
+  ProjectId int [ref: > Projects.Id]
+  UserId int [ref: > Users.Id]
+  EntityName varchar [note: 'Task, Comment, etc.']
+  EntityId int
+  Action varchar [note: 'Created, Updated, ChangedStatus']
+  OldValue text
+  NewValue text
+  Timestamp timestamp [default: `now()`]
+  
+  Note: 'Crucial for "Who changed the due date?" questions'
+}
