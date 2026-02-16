@@ -12,7 +12,7 @@ namespace Task_Project_Management_System.Entities
     [Index(nameof(OrganizationId))]
     [Index(nameof(AssignedTo))]
     [Index(nameof(OrganizationId), nameof(Status))]
-    public class Task : BaseEntity
+    public class TaskInfo : BaseEntity
     {
         // Foreign key to Project
         [Required]

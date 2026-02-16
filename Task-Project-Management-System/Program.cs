@@ -1,153 +1,116 @@
-/// <summary>
-/// Task Project Management System - Application Entry Point
-/// 
-/// This file configures:
-/// - Dependency Injection services
-/// - Razor Components (Blazor Web App)
-/// - API Controllers
-/// - Swagger / OpenAPI documentation
-/// - HTTP request pipeline middleware
-/// 
-/// Swagger UI is enabled only in Development environment.
-/// </summary>
-
-using Microsoft.OpenApi;
-using Task_Project_Management_System.Client.Pages;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
 using Task_Project_Management_System.Components;
+using Task_Project_Management_System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-/// <summary>
-/// Registers application services into the Dependency Injection container.
-/// </summary>
+// --- 1. Database Connection ---
+var connectionString = builder.Configuration.GetConnectionString("TaskProjectDBConnection")
+    ?? throw new InvalidOperationException("Connection string 'TaskProjectDBConnection' not found.");
 
-/// <summary>
-/// Adds Razor Components with Interactive WebAssembly support.
-/// Enables hybrid rendering (Server + WebAssembly).
-/// </summary>
+builder.Services.AddDbContext<ApplicationDBContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// --- 2. JWT Authentication Setup ---
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var key = Encoding.ASCII.GetBytes(jwtSection["Key"]!);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSection["Issuer"],
+        ValidAudience = jwtSection["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ClockSkew = TimeSpan.Zero // Optional: Removes the default 5min grace period
+    };
+});
+
+builder.Services.AddAuthorization();
+
+// --- 3. Core Services ---
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 
-/// <summary>
-/// Adds MVC Controllers to support REST API endpoints.
-/// Required for exposing API routes like /api/tasks.
-/// </summary>
 builder.Services.AddControllers();
-
-/// <summary>
-/// Enables API endpoint discovery required for Swagger.
-/// </summary>
 builder.Services.AddEndpointsApiExplorer();
 
-/// <summary>
-/// Configures Swagger/OpenAPI documentation generation.
-/// Defines API metadata such as Title, Version, and Description.
-/// </summary>
+// --- 4. Swagger with JWT Support ---
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Version = "v1",
         Title = "Task Project Management System API",
-        Description = "API documentation for the Task Project Management System application."
+        Description = "Secure API for managing projects and tasks."
+    });
+
+    var securityScheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter JWT Bearer token **_only_**",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Reference = new OpenApiReference
+        {
+            Id = JwtBearerDefaults.AuthenticationScheme,
+            Type = ReferenceType.SecurityScheme
+        }
+    };
+
+    options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, securityScheme);
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        { securityScheme, Array.Empty<string>() }
     });
 });
 
 var app = builder.Build();
 
-/// <summary>
-/// Configures the HTTP request pipeline.
-/// Middleware order is important.
-/// </summary>
-
-/// <summary>
-/// Development Environment Configuration.
-/// Enables debugging and Swagger UI.
-/// </summary>
+// --- 5. Middleware Pipeline ---
 if (app.Environment.IsDevelopment())
 {
-    /// <summary>
-    /// Enables WebAssembly debugging support.
-    /// </summary>
     app.UseWebAssemblyDebugging();
-
-    /// <summary>
-    /// Enables Swagger JSON endpoint generation.
-    /// </summary>
     app.UseSwagger();
-
-    /// <summary>
-    /// Enables Swagger UI for API testing.
-    /// Accessible at: https://localhost:{port}/api-docs
-    /// </summary>
     app.UseSwaggerUI(options =>
     {
-        options.SwaggerEndpoint(
-            "/swagger/v1/swagger.json",
-            "Task Project Management System API v1"
-        );
-
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
         options.RoutePrefix = "api-docs";
     });
 }
 else
 {
-    /// <summary>
-    /// Configures global exception handling for production.
-    /// </summary>
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-
-    /// <summary>
-    /// Enables HTTP Strict Transport Security (HSTS).
-    /// </summary>
     app.UseHsts();
 }
 
-/// <summary>
-/// Handles 404 and other status code pages.
-/// Redirects to custom not-found page.
-/// </summary>
-app.UseStatusCodePagesWithReExecute(
-    "/not-found",
-    createScopeForStatusCodePages: true
-);
-
-/// <summary>
-/// Redirects HTTP requests to HTTPS.
-/// </summary>
 app.UseHttpsRedirection();
-
-/// <summary>
-/// Serves static files from wwwroot.
-/// </summary>
 app.UseStaticFiles();
-
-/// <summary>
-/// Enables CSRF protection.
-/// </summary>
 app.UseAntiforgery();
 
-/// <summary>
-/// Maps API controller endpoints.
-/// Example route: /api/tasks
-/// </summary>
-app.MapControllers();
+app.UseAuthentication();
+app.UseAuthorization();
 
-/// <summary>
-/// Maps static assets required by Razor Components.
-/// </summary>
+app.MapControllers();
 app.MapStaticAssets();
 
-/// <summary>
-/// Maps Razor Components and enables interactive WebAssembly rendering.
-/// </summary>
 app.MapRazorComponents<App>()
     .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(
-        typeof(Task_Project_Management_System.Client._Imports).Assembly
-    );
+    .AddAdditionalAssemblies(typeof(Task_Project_Management_System.Client._Imports).Assembly);
 
-/// <summary>
-/// Starts the web application.
-/// </summary>
 app.Run();

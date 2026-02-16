@@ -13,7 +13,7 @@ namespace Task_Project_Management_System.Entities
         public int TaskId { get; set; }
 
         [ForeignKey(nameof(TaskId))]
-        public Task Task { get; set; } = null!;
+        public TaskInfo Task { get; set; } = null!;
 
         // Foreign key to User
         [Required]

@@ -47,6 +47,6 @@ namespace Task_Project_Management_System.Entities
 
         // Navigation properties
         public ICollection<ProjectMember> Members { get; set; } = new List<ProjectMember>();
-        public ICollection<Task> Tasks { get; set; } = new List<Task>();
+        public ICollection<TaskInfo> Tasks { get; set; } = new List<TaskInfo>();
     }
 }
