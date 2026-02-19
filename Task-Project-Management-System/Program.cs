@@ -2,107 +2,105 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Scalar.AspNetCore;
 using System.Text;
 using Task_Project_Management_System.Components;
 using Task_Project_Management_System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. Database Connection ---
+// --- 1. Database ---
 var connectionString = builder.Configuration.GetConnectionString("TaskProjectDBConnection")
-    ?? throw new InvalidOperationException("Connection string 'TaskProjectDBConnection' not found.");
-
+    ?? throw new InvalidOperationException("Connection string missing");
 builder.Services.AddDbContext<ApplicationDBContext>(options =>
     options.UseSqlServer(connectionString));
 
-// --- 2. JWT Authentication Setup ---
-var jwtSection = builder.Configuration.GetSection("Jwt");
-var key = Encoding.ASCII.GetBytes(jwtSection["Key"]!);
+// --- 2. JWT Authentication ---
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "DefaultSecureKeyForDevelopmentOnly123!";
+var key = Encoding.ASCII.GetBytes(jwtKey);
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSection["Issuer"],
-        ValidAudience = jwtSection["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ClockSkew = TimeSpan.Zero // Optional: Removes the default 5min grace period
-    };
-});
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
 builder.Services.AddAuthorization();
 
-// --- 3. Core Services ---
+// --- 3. Controllers & Blazor ---
+builder.Services.AddControllers();
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
-
-builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 4. Swagger with JWT Support ---
+// --- 4. Fixed Swagger Configuration ---
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Version = "v1",
         Title = "Task Project Management System API",
-        Description = "Secure API for managing projects and tasks."
+        Version = "v1"
     });
 
+    // Define the security scheme reference explicitly
     var securityScheme = new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Description = "Enter JWT Bearer token **_only_**",
-        In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        Reference = new OpenApiReference
-        {
-            Id = JwtBearerDefaults.AuthenticationScheme,
-            Type = ReferenceType.SecurityScheme
-        }
+        In = ParameterLocation.Header,
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\""
     };
 
-    options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, securityScheme);
+    options.AddSecurityDefinition("Bearer", securityScheme);
+
+    // FIX: Use the correct Reference object for AddSecurityRequirement
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { securityScheme, Array.Empty<string>() }
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new List<string>() // Must be List<string>, not string[]
+        }
     });
 });
 
 var app = builder.Build();
 
-// --- 5. Middleware Pipeline ---
+// --- 5. Middleware ---
 if (app.Environment.IsDevelopment())
 {
-    app.UseWebAssemblyDebugging();
     app.UseSwagger();
-    app.UseSwaggerUI(options =>
+    app.UseSwaggerUI();
+
+    app.MapScalarApiReference(options =>
     {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
-        options.RoutePrefix = "api-docs";
+        options.Title = "Task Project API Reference";
+        options.Theme = ScalarTheme.Mars;
     });
-}
-else
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
+
+    app.UseWebAssemblyDebugging();
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
 app.UseAntiforgery();
-
 app.UseAuthentication();
 app.UseAuthorization();
 

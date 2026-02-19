@@ -30,104 +30,77 @@ namespace Task_Project_Management_System.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // ===============================================
-            // 1. OrganizationMember (Many-to-Many Mapping)
-            // ===============================================
-            modelBuilder.Entity<OrganizationMember>()
-                .HasKey(om => new { om.OrganizationId, om.UserId });
-
-            modelBuilder.Entity<OrganizationMember>()
-                .HasOne(om => om.User)
-                .WithMany(u => u.OrganizationMembers)
-                .HasForeignKey(om => om.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<OrganizationMember>()
-                .HasOne(om => om.Organization)
-                .WithMany()
-                .HasForeignKey(om => om.OrganizationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // ===============================================
-            // 2. ProjectMember (Many-to-Many Mapping)
-            // ===============================================
-            modelBuilder.Entity<ProjectMember>()
-                .HasKey(pm => new { pm.ProjectId, pm.UserId });
-
-            modelBuilder.Entity<ProjectMember>()
-                .HasOne(pm => pm.User)
-                .WithMany(u => u.ProjectMembers)
-                .HasForeignKey(pm => pm.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<ProjectMember>()
-                .HasOne(pm => pm.Project)
-                .WithMany(p => p.Members)
-                .HasForeignKey(pm => pm.ProjectId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // ===============================================
-            // 3. Task Relationships (Disambiguation)
-            // ===============================================
-
-            // Link Task to Assigned User
-            modelBuilder.Entity<TaskInfo>()
-                .HasOne(t => t.AssignedUser)
-                .WithMany(u => u.AssignedTasks)
-                .HasForeignKey(t => t.AssignedTo)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Link Task to Creator
-            modelBuilder.Entity<TaskInfo>()
-                .HasOne(t => t.CreatedBy)
-                .WithMany(u => u.CreatedTasks)
-                .HasForeignKey(t => t.CreatedById)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // ===============================
-            // 4. Global Query Filters (Soft Delete)
-            // ===============================
-
-            modelBuilder.Entity<User>()
-                .HasQueryFilter(u => u.DeletedAt == null);
-
-            modelBuilder.Entity<Organization>()
-                .HasQueryFilter(o => o.DeletedAt == null);
-
-            modelBuilder.Entity<Project>()
-                .HasQueryFilter(p => p.DeletedAt == null);
-
-            modelBuilder.Entity<TaskInfo>()
-                .HasQueryFilter(t => t.DeletedAt == null);
-
-            modelBuilder.Entity<Comment>()
-                .HasQueryFilter(c => c.DeletedAt == null && c.TaskInfo.DeletedAt == null);
-
-            modelBuilder.Entity<ProjectMember>()
-                .HasQueryFilter(pm =>
-                    pm.DeletedAt == null &&
-                    pm.Project.DeletedAt == null &&
-                    pm.User.DeletedAt == null);
-
-            modelBuilder.Entity<OrganizationMember>()
-                .HasQueryFilter(om =>
-                    om.DeletedAt == null &&
-                    om.Organization.DeletedAt == null &&
-                    om.User.DeletedAt == null);
-
-            // ===============================================
-            // 5. Global Delete Behavior (Restrict)
-            // ===============================================
-            foreach (var relationship in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()))
+            // 1. OrganizationMember Configuration
+            modelBuilder.Entity<OrganizationMember>(entity =>
             {
-                relationship.DeleteBehavior = DeleteBehavior.Restrict;
+                entity.HasKey(om => new { om.OrganizationId, om.UserId });
+
+                entity.HasOne(om => om.User)
+                    .WithMany(u => u.OrganizationMembers)
+                    .HasForeignKey(om => om.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(om => om.Organization)
+                    .WithMany() // Organizations don't necessarily need a list of members in the entity
+                    .HasForeignKey(om => om.OrganizationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasQueryFilter(om => om.DeletedAt == null && om.Organization.DeletedAt == null && om.User.DeletedAt == null);
+            });
+
+            // 2. ProjectMember Configuration
+            modelBuilder.Entity<ProjectMember>(entity =>
+            {
+                entity.HasKey(pm => new { pm.ProjectId, pm.UserId });
+
+                entity.HasOne(pm => pm.User)
+                    .WithMany(u => u.ProjectMembers)
+                    .HasForeignKey(pm => pm.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(pm => pm.Project)
+                    .WithMany(p => p.Members)
+                    .HasForeignKey(pm => pm.ProjectId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasQueryFilter(pm => pm.DeletedAt == null && pm.Project.DeletedAt == null && pm.User.DeletedAt == null);
+            });
+
+            // 3. TaskInfo Configuration
+            modelBuilder.Entity<TaskInfo>(entity =>
+            {
+                // Explicitly map to "Tasks" table if desired
+                entity.ToTable("Tasks");
+
+                entity.HasOne(t => t.AssignedUser)
+                    .WithMany(u => u.AssignedTasks)
+                    .HasForeignKey(t => t.AssignedTo)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(t => t.CreatedBy)
+                    .WithMany(u => u.CreatedTasks)
+                    .HasForeignKey(t => t.CreatedById)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasQueryFilter(t => t.DeletedAt == null);
+            });
+
+            // 4. Other Global Filters
+            modelBuilder.Entity<User>().HasQueryFilter(u => u.DeletedAt == null);
+            modelBuilder.Entity<Organization>().HasQueryFilter(o => o.DeletedAt == null);
+            modelBuilder.Entity<Project>().HasQueryFilter(p => p.DeletedAt == null);
+            modelBuilder.Entity<Comment>().HasQueryFilter(c => c.DeletedAt == null && c.TaskInfo.DeletedAt == null);
+
+            // 5. Global Delete Behavior & Concurrency (Advanced Production Step)
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                // Set all Foreign Keys to Restrict
+                foreach (var fk in entityType.GetForeignKeys())
+                    fk.DeleteBehavior = DeleteBehavior.Restrict;
             }
         }
 
-        // ===================================================
-        // 6. Automated Auditing & Soft Delete Interception
-        // ===================================================
-
+        // 6. Enhanced Automated Auditing
         public override int SaveChanges()
         {
             ApplyAuditLogic();
@@ -142,34 +115,32 @@ namespace Task_Project_Management_System.Data
 
         private void ApplyAuditLogic()
         {
-            var entries = ChangeTracker.Entries();
+            var entries = ChangeTracker.Entries()
+                .Where(e => e.Entity is BaseEntity &&
+                           (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted));
+
             var now = DateTime.UtcNow;
 
             foreach (var entry in entries)
             {
-                if (entry.Entity is BaseEntity trackable)
+                var trackable = (BaseEntity)entry.Entity;
+
+                if (entry.State == EntityState.Added)
                 {
-                    switch (entry.State)
-                    {
-                        case EntityState.Added:
-                            trackable.CreatedAt = now;
-                            trackable.UpdatedAt = now;
-                            trackable.DeletedAt = null;
-                            break;
-
-                        case EntityState.Modified:
-                            trackable.UpdatedAt = now;
-                            // Ensure CreatedAt is never modified
-                            entry.Property(nameof(BaseEntity.CreatedAt)).IsModified = false;
-                            break;
-
-                        case EntityState.Deleted:
-                            // Convert Hard Delete to Soft Delete
-                            entry.State = EntityState.Modified;
-                            trackable.DeletedAt = now;
-                            trackable.UpdatedAt = now;
-                            break;
-                    }
+                    trackable.CreatedAt = now;
+                    trackable.UpdatedAt = now;
+                }
+                else if (entry.State == EntityState.Modified)
+                {
+                    trackable.UpdatedAt = now;
+                    entry.Property(nameof(BaseEntity.CreatedAt)).IsModified = false;
+                }
+                else if (entry.State == EntityState.Deleted)
+                {
+                    // Logic switch: Deleted -> Modified
+                    entry.State = EntityState.Modified;
+                    trackable.DeletedAt = now;
+                    trackable.UpdatedAt = now;
                 }
             }
         }
