@@ -18,7 +18,7 @@ namespace Task_Project_Management_System.Controllers
             _context = context;
         }
         [HttpGet]
-        [Route("GetAllUsers")]
+        [Route("GetAll/Users")]
         public async Task<ActionResult<ApiResponse<IEnumerable<UsersDto>>>> GetAll()
         {
             try
@@ -49,6 +49,34 @@ namespace Task_Project_Management_System.Controllers
                     Message = $"An error occurred while retrieving users: {ex.Message}",
                     Data = null
                 });
+            }
+        }
+
+
+        [HttpGet]
+        [Route("GetUserById/{id}")]
+        public async Task<ActionResult<ApiResponse<UsersDto>>> GetById(int id)
+        {
+            try
+            {
+                var user = await _context.Users.FindAsync(id);
+                if (user == null)
+                {
+                    return NotFound(ApiResponse<UsersDto>.FailureResponse("User not found"));
+                }
+                var userDto = new UsersDto
+                {
+                    Id = user.Id,
+                    FullName = user.FullName,
+                    Username = user.Username,
+                    Email = user.Email,
+                    AvatarUrl = user.AvatarUrl
+                };
+                return Ok(ApiResponse<UsersDto>.SuccessResponse(userDto, "User retrieved successfully"));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse<UsersDto>.FailureResponse($"An error occurred while retrieving the user: {ex.Message}"));
             }
         }
 
