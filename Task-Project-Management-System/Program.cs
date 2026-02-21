@@ -16,7 +16,7 @@ builder.Services.AddDbContext<ApplicationDBContext>(options =>
     options.UseSqlServer(connectionString));
 
 // --- 2. JWT Authentication ---
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "DefaultSecureKeyForDevelopmentOnly123!";
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "DefaultSecureKey_32CharactersLong!!";
 var key = Encoding.ASCII.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -36,36 +36,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-
-// --- 3. Controllers & Blazor ---
 builder.Services.AddControllers();
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 4. Fixed Swagger Configuration ---
+// --- 3. Fixed Swagger Gen ---
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "Task Project Management System API",
-        Version = "v1"
-    });
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Task API", Version = "v1" });
 
-    // Define the security scheme reference explicitly
-    var securityScheme = new OpenApiSecurityScheme
+    // Define the Security Scheme
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\""
-    };
+        Description = "Enter JWT token"
+    });
 
-    options.AddSecurityDefinition("Bearer", securityScheme);
-
-    // FIX: Use the correct Reference object for AddSecurityRequirement
+    // Apply the Security Requirement
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -77,25 +69,19 @@ builder.Services.AddSwaggerGen(options =>
                     Id = "Bearer"
                 }
             },
-            new List<string>() // Must be List<string>, not string[]
+            new List<string>() // Must be List<string>
         }
     });
 });
 
 var app = builder.Build();
 
-// --- 5. Middleware ---
+// --- 4. Middleware ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    app.MapScalarApiReference(options =>
-    {
-        options.Title = "Task Project API Reference";
-        options.Theme = ScalarTheme.Mars;
-    });
-
+    app.MapScalarApiReference();
     app.UseWebAssemblyDebugging();
 }
 
